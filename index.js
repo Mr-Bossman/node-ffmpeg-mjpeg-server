@@ -1,14 +1,14 @@
 var ffmpeg = require('fluent-ffmpeg');
-const stream = require('stream')
 const express = require('express');
 const app = express();
 var PubSub = require("pubsub-js");
-
-const boundaryID = "BOUNDARY";
-app.get('/', (req, res, next) => {
+var net = require("net");
+var connections = 0
+const boundaryID = "BOUNDRY";
+app.get('/', function(req, res) {
     res.sendfile('./index.html');
 })
-app.get('/test.jpg', async function(req, res) {
+app.get('/test.jpg', function(req, res) {
     res.writeHead(200, {
         'Content-Type': 'multipart/x-mixed-replace;boundary="' + boundaryID + '"',
         'Connection': 'keep-alive',
@@ -16,8 +16,12 @@ app.get('/test.jpg', async function(req, res) {
         'Cache-Control': 'no-cache, no-store, max-age=0, must-revalidate',
         'Pragma': 'no-cache'
     });
+    if (connections == 0) {
+        start();
+    }
+    connections++;
+    console.log("Start: " + connections);
 
-    console.log('Start of send');
 
     var sub = PubSub.subscribe('MJPEG', function(msg, data) {
 
@@ -30,15 +34,38 @@ app.get('/test.jpg', async function(req, res) {
         res.write(data, 'binary');
         res.write("\r\n");
     });
+
     res.on('close', function() {
-        console.log("Connection closed!");
+        connections--;
+        if (connections == 0) {
+            end();
+        }
+        console.log("End: " + connections);
         PubSub.unsubscribe(sub);
         res.end();
     });
 });
-var command = ffmpeg('/dev/video0').videoBitrate('1024k').addInputOption("-re").outputFormat("mjpeg").fps(30).size('1080x720').addOptions("-q:v 6");
+var command = ffmpeg('tcp://localhost:1935').inputFormat("mpegts").inputOptions("-listen 1").videoBitrate('1024k').outputFormat("mjpeg").fps(30).size('720x480').addOptions("-q:v 7");
 var ffstream = command.pipe();
 ffstream.on('data', function(chunk) {
     PubSub.publish('MJPEG', chunk);
 });
+
+function start() {
+    var client = new net.Socket();
+    client.connect(1337, '127.0.0.1', function() {
+        client.write('stream');
+    });
+    client.destroy();
+
+}
+
+function end() {
+    var client = new net.Socket();
+    client.connect(1337, '127.0.0.1', function() {
+        client.write('end');
+    });
+    client.destroy();
+
+}
 app.listen(8080);
