@@ -68,40 +68,33 @@ def remove(connection):
     if connection in list_of_clients: 
         list_of_clients.remove(connection) 
 def stream(server_url):
-    video_format = "mpegts"
     return (
         ffmpeg
         .input(video_buffer, 
-            format = "v4l2",
-            r = "30")
+            format = "v4l2")
         .output(
             server_url, 
-            codec = "mpeg4", # use same codecs of the original video
-            f="mpegts",
+            codec = "h264_v4l2m2m", # use same codecs of the original video
+            f="h264",
             pix_fmt='yuv420p',
             video_bitrate = "600k",
             audio_bitrate = "0",
-            g = "400",
-            r = "30"
+            g = "600",
             )
-        .global_args("-re", "-hide_banner" ,"-loglevel", "error") # argument to act as a live stream
+        .global_args("-hide_banner" ,"-loglevel", "error") # argument to act as a live stream
         .run_async()
     )
 
 
 def copy(out):
-    video_format = "mpegts"
     return (
         ffmpeg
         .input("/dev/video0", 
-            format = "v4l2",
-            r = "30")
+            format = "v4l2")
         .output(
             out, 
-            format = "v4l2",
-            r = "30"
-            )
-        .global_args("-re", "-hide_banner" ,"-loglevel", "info") # argument to act as a live stream
+            format = "v4l2")
+        .global_args("-hide_banner" ,"-loglevel", "error") # argument to act as a live stream
         .run_async()
     )
 
