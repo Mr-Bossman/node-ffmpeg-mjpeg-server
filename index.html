@@ -3,6 +3,93 @@
 <meta name="viewport" content="width=device-width, minimum-scale=0.1">
 </head>
 <body style="margin: 0px; background: #0e0e0e; height: 100%">
-<img style="-webkit-user-select: none;margin: auto;width:100%;height:100%;" src="/test.jpg">
+<img id="image"/>
+<script>
+ const url = "/test.jpg";
+
+var contentLength = -1;
+        let imageBuffer = null;
+        let bytesRead = 0;
+        var overflow = false;
+        var header = '';
+        var blobs = new Blob();
+        const SOI = new Uint8Array(4);
+
+        SOI[0] = 0x0D;
+        SOI[1] = 0x0A;
+        SOI[2] = 0xFF;
+        SOI[3] = 0xD8;
+        const CONTENT_LENGTH = 'Content-Length';
+        const TYPE_JPEG = 'image/jpeg';
+        fetch(url).then(response => {
+            if (!response.ok) {
+                throw Error(response.status+' '+response.statusText)
+            }
+
+            if (!response.body) {
+                throw Error('ReadableStream not yet supported in this browser.')
+            }
+            
+            const reader = response.body.getReader();
+
+            const read = () => {
+
+                reader.read().then(({done, value}) => {
+                    if (done) {
+                        controller.close();
+                        return;
+                    }
+                    for (let index =0; index < value.length; index++) {
+                        
+                        if(contentLength > bytesRead)
+                            imageBuffer[bytesRead++] = value[index];
+                        else 
+                            header += String.fromCharCode(value[index]);
+                        if (value[index] === SOI[0] && value[index+1] === SOI[1] && value[index+2] === SOI[0] && value[index+3] === SOI[1]) {
+                            if(value[index+4] === SOI[2] && value[index+5] === SOI[3]) {
+                                blobs = new Blob([imageBuffer]);
+                                URL.revokeObjectURL(document.getElementById('image').src);
+                                document.getElementById('image').src = URL.createObjectURL(blobs, { type: TYPE_JPEG });                            
+                                index += 3;
+                                bytesRead = 0;
+                                contentLength = getLength(header);
+                                if(contentLength == -1)
+                                    continue
+                                imageBuffer = new Uint8Array(new ArrayBuffer(contentLength));
+                            } else {
+                                var tempB = new Uint8Array(new ArrayBuffer(contentLength));
+                                tempB.set(imageBuffer);
+
+                                var tmp = getLength(header);
+                                if(tmp == -1)
+                                    continue
+                                contentLength = +contentLength + +tmp;
+                                index += 3;
+                                var tempA = new ArrayBuffer(contentLength);
+                                imageBuffer = new Uint8Array(tempA);
+                                imageBuffer.set(tempB);
+                            } 
+
+                        }
+                    }
+
+                    read();
+                });
+            }
+            
+            read();
+            
+        });
+        const getLength = (headers) => {
+            let contentLength = -1;
+            headers.split('\n').forEach((header, _) => {
+                const pair = header.split(':');
+                if (pair[0] === CONTENT_LENGTH) {
+                contentLength = pair[1];
+                }
+            })
+            return contentLength;
+        };
+</script>
 </body>
 </html>
