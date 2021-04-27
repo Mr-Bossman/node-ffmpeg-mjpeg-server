@@ -60,7 +60,8 @@ def clientthread(conn, addr):
                         net = False
                 else:
                     net = False 
-                    remove(conn) 
+                    remove(conn)
+                    break
             except: 
                 continue
   
