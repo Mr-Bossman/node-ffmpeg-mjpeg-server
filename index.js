@@ -3,6 +3,7 @@ const express = require('express');
 const app = express();
 var PubSub = require("pubsub-js");
 var net = require("net");
+var chunks = new Buffer([]);
 var connections = 0
 var client = new net.Socket();
 const boundaryID = "BOUNDRY";
@@ -53,7 +54,12 @@ function ff() {
 var command = ff();
 var ffstream = command.pipe();
 ffstream.on('data', function(chunk) {
-    PubSub.publish('MJPEG', chunk);
+    if (chunk[0] == 0xFF && chunk[1] == 0xD8) {
+        PubSub.publish('MJPEG', chunks);
+        chunks = chunk;
+    } else {
+        chunks.concat([chunks, chunk]);
+    }
 });
 
 function restart() {
