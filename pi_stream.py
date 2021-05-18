@@ -8,6 +8,7 @@ import signal
 import socket 
 import select 
 import sys
+import os
 import threading
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
 server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) 
@@ -25,7 +26,7 @@ stream_pid = 0
 st = time.perf_counter()
 net = False 
 exi = False
-video_buffer =  "/dev/video1"
+video_buffer =  "/dev/video0"
 
 
 def signal_handler(sig, frame):
@@ -59,7 +60,8 @@ def clientthread(conn, addr):
                         stream_pid = 0
                         net = False
                 else:
-                    net = False 
+                    net = False
+                    conn.close()
                     remove(conn)
                     break
             except: 
@@ -68,7 +70,9 @@ def clientthread(conn, addr):
 def remove(connection): 
     if connection in list_of_clients: 
         list_of_clients.remove(connection) 
+
 def stream(server_url):
+    print("start")
     return (
         ffmpeg
         .input(video_buffer, 
@@ -77,8 +81,9 @@ def stream(server_url):
             server_url, 
             codec = "h264_v4l2m2m", # use same codecs of the original video
             f="h264",
+            r="15",
             pix_fmt='yuv420p',
-            video_bitrate = "600k",
+            video_bitrate = "800k",
             audio_bitrate = "0",
             g = "600",
             )
@@ -90,7 +95,7 @@ def stream(server_url):
 def copy(out):
     return (
         ffmpeg
-        .input("/dev/video0", 
+        .input("/dev/video1", 
             format = "v4l2")
         .output(
             out, 
@@ -164,11 +169,13 @@ def motionDetection():
     cap.release()
 
 
- 
- 
+os.system("v4l2-ctl -d /dev/video1 --set-ctrl=auto_exposure=1") 
+os.system("v4l2-ctl -d /dev/video1 --set-ctrl=exposure_time_absolute=20")
 signal.signal(signal.SIGINT, signal_handler)
 pid.append(copy(video_buffer))
-
+time.sleep(1)
+if not (pid[0].poll() is None):
+    quit()
 T1 = threading.Thread(target=motionDetection)
 T1.start()
 while True: 
